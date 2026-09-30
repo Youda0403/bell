@@ -47,6 +47,11 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .cue{position:absolute;left:50%;top:18px;transform:translateX(-50%);background:rgba(0,0,0,.62);color:#fff;font-size:12.5px;font-weight:500;padding:6px 12px;border-radius:999px;white-space:nowrap;pointer-events:none;transition:opacity .4s}
 .cue.gone{opacity:0}
 body.typing .stage-bar,body.typing .cue{display:none}
+.aim{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;opacity:0;transition:opacity .2s}
+.aim::before,.aim::after{content:"";position:absolute;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.aim::before{left:16px;top:0;width:2px;height:34px}
+.aim::after{top:16px;left:0;height:2px;width:34px}
+.device.aiming .aim{opacity:1}
 
 .seg{display:inline-flex;background:var(--well);border-radius:999px;padding:3px;gap:2px}
 .seg button{border:0;background:transparent;color:var(--muted);font:500 13.5px var(--f-body);padding:7px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
@@ -148,7 +153,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.tab:focus-visib
     <div class="stage-inner">
       <div class="device" id="device">
         <canvas id="view" width="720" height="720" aria-label="초인종 카메라 미리보기. 드래그로 이동, 두 손가락이나 휠로 확대"></canvas>
-        <span class="cue" id="cue">끌어서 이동 · 두 손가락이나 휠로 확대</span>
+        <span class="cue" id="cue">코를 가운데에 맞추면 뽈록해져요 · 끌어서 이동</span>
+        <span class="aim" aria-hidden="true"></span>
       </div>
       <div class="stage-bar">
         <div class="seg" data-group="drag" role="group" aria-label="드래그로 움직일 대상">
@@ -268,7 +274,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.tab:focus-visib
 
     <!-- 렌즈 -->
     <div class="panel" id="tab-lens" role="tabpanel" hidden>
-      <div class="field"><div class="lab"><label for="lStr">볼록함</label><output data-out="lens.strength" data-fmt="pct"></output></div>
+      <div class="field"><div class="lab"><label for="lBulge">코 뽈록<small>가운데만 부풀려서 코끝이 렌즈에 닿은 것처럼 만들어요</small></label><output data-out="lens.bulge" data-fmt="pct"></output></div>
+        <input type="range" id="lBulge" data-bind="lens.bulge" min="0" max="1" step="0.01"></div>
+      <div class="field"><div class="lab"><label for="lBulgeR">뽈록 범위<small>작으면 코만, 크면 얼굴 전체가 부풀어요</small></label><output data-out="lens.bulgeR" data-fmt="pct"></output></div>
+        <input type="range" id="lBulgeR" data-bind="lens.bulgeR" min="0.18" max="0.7" step="0.01"></div>
+      <div class="field"><div class="lab"><label for="lStr">화면 휘어짐<small>배경의 직선이 둥글게 휘는 정도</small></label><output data-out="lens.strength" data-fmt="pct"></output></div>
         <input type="range" id="lStr" data-bind="lens.strength" min="0" max="1" step="0.01"></div>
       <div class="field"><div class="lab"><label for="lSize">렌즈 크기 <small>끝까지 올리면 테두리 없는 화면</small></label><output data-out="lens.size" data-fmt="pct"></output></div>
         <input type="range" id="lSize" data-bind="lens.size" min="0.6" max="1.45" step="0.01"></div>
@@ -363,7 +373,7 @@ const ST = {
   subject: null,
   bg: {type:'scene', scene:'deck', color:'#f2c14e', pattern:'check', pc1:'#F59AB0', pc2:'#FFF0F4', pscale:1, photo:null, photoId:0, avg:'#888888', x:0, y:0, zoom:1},
   ov: {on:true, k:.8, grade:1, light:1, wrap:1, shadow:1, fx:1},
-  lens: {strength:.6, size:.84, soft:.07, vig:.5, ca:.35, rough:.3, mode:0, glass:true, info:false, cam:'현관'},
+  lens: {strength:.6, bulge:.55, bulgeR:.36, size:.84, soft:.07, vig:.5, ca:.35, rough:.3, mode:0, glass:true, info:false, cam:'현관'},
   text: {str:'누구 있어요?', font:'myeongjo', color:'#ffffff', layout:'arc-bottom', size:.056, spacing:.06},
   drag: 'subject'
 };
@@ -709,13 +719,13 @@ function analyze(cv){
 function fitSubject(s){
   const m=Math.max(s.canvas.width,s.canvas.height),bb=s.bbox;
   s.scale=clamp(.8*m/Math.max(bb.w,bb.h),.1,3);s.rot=0;s.flip=false;
-  const k=s.scale/m;s.x=.5-(bb.x+bb.w/2-s.canvas.width/2)*k;s.y=.55-(bb.y+bb.h/2-s.canvas.height/2)*k;
+  const k=s.scale/m;s.x=.5-(bb.x+bb.w/2-s.canvas.width/2)*k;s.y=.5-(bb.y+bb.h*.42-s.canvas.height/2)*k;
 }
 function setSubject(src,isExample){
   const w=src.naturalWidth||src.width,h=src.naturalHeight||src.height,k=Math.min(1,1400/Math.max(w,h));
   const cv=mk(Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)));cv.getContext('2d').drawImage(src,0,0,cv.width,cv.height);
   const a=analyze(cv);const s={canvas:cv,bbox:a.bbox,hasAlpha:a.hasAlpha,id:++sid,x:.5,y:.55,scale:1,rot:0,flip:false};
-  fitSubject(s);if(isExample){s.scale=.64;s.x=.5;s.y=.6}
+  fitSubject(s);if(isExample){s.scale=.62;s.x=.5;s.y=.5-(565-450)/900*.62}
   ST.subject=s;
   $('#alphaWarn').hidden=isExample||a.hasAlpha;
   $('#subjNote').textContent=isExample?'지금은 예시 강아지예요. 배경을 지운 PNG를 올리거나 미리보기에 끌어다 놓으세요.':'사진을 넣었어요. 미리보기에서 끌어서 옮기고, 두 손가락이나 휠로 크기를 바꿔 보세요.';
@@ -801,9 +811,11 @@ let prog=null,uni={},tex=null;
 if(gl){
   const vs=`attribute vec2 p;varying vec2 v;void main(){v=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}`;
   const fs=`precision highp float;
-varying vec2 v;uniform sampler2D t;uniform float th,R,soft,vig,ca,blur,noise,mode,glass,seed;uniform vec2 res;
+varying vec2 v;uniform sampler2D t;uniform float th,R,soft,vig,ca,blur,noise,mode,glass,seed,bM,bS;uniform vec2 res;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233))+seed)*43758.5453);}
-vec2 mp(vec2 p,float k){float d=length(p);float r=min(d/R,1.05);vec2 dir=d>1e-5?p/d:vec2(0.);float s=th<.01?r:tan(r*th)/tan(th);return dir*s*k*.5+.5;}
+vec2 mp(vec2 p,float k){float d=length(p);float r=min(d/R,1.05);vec2 dir=d>1e-5?p/d:vec2(0.);float s=th<.01?r:tan(r*th)/tan(th);
+ float iM=1./bM,b2=bS*bS;float m=iM+(1.-iM)*(1.-exp(-s*s/b2));float m1=iM+(1.-iM)*(1.-exp(-1./b2));
+ s=s*m/m1;return dir*s*k*.5+.5;}
 vec3 sm(vec2 uv,float bl){vec3 c=texture2D(t,clamp(uv,0.,1.)).rgb*2.;
  c+=texture2D(t,clamp(uv+vec2(bl,0.),0.,1.)).rgb;c+=texture2D(t,clamp(uv-vec2(bl,0.),0.,1.)).rgb;
  c+=texture2D(t,clamp(uv+vec2(0.,bl),0.,1.)).rgb;c+=texture2D(t,clamp(uv-vec2(0.,bl),0.,1.)).rgb;return c/6.;}
@@ -828,14 +840,16 @@ void main(){
     gl.useProgram(prog);
     const bufq=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bufq);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
     const loc=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-    ['t','th','R','soft','vig','ca','blur','noise','mode','glass','seed','res'].forEach(n=>uni[n]=gl.getUniformLocation(prog,n));
+    ['t','th','R','soft','vig','ca','blur','noise','mode','glass','seed','res','bM','bS'].forEach(n=>uni[n]=gl.getUniformLocation(prog,n));
     tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.uniform1i(uni.t,0);
   }
 }
-function lensParams(){const L=ST.lens,th=.05+L.strength*1.35;return{th,R:L.size,m:(th/Math.tan(th))/L.size}}
+/* 코 뽈록: 가운데 배율 M(1~6배), 범위 bS. 렌즈 가장자리는 원래 위치를 유지하도록 m1로 정규화 */
+function lensParams(){const L=ST.lens,th=.05+L.strength*1.35,M=1+L.bulge*5,bS=L.bulgeR,m1=1/M+(1-1/M)*(1-Math.exp(-1/(bS*bS)));
+  return{th,R:L.size,M,bS,m:(th/Math.tan(th))/L.size/(M*m1)}}
 function lensRender(scene,S,L){
   if(glc.width!==S){glc.width=S;glc.height=S}
   gl.viewport(0,0,S,S);gl.useProgram(prog);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);
@@ -844,7 +858,7 @@ function lensRender(scene,S,L){
   const Q=ST.lens;
   gl.uniform1f(uni.th,L.th);gl.uniform1f(uni.R,L.R);gl.uniform1f(uni.soft,Math.max(.004,Q.soft));gl.uniform1f(uni.vig,Q.vig);
   gl.uniform1f(uni.ca,Q.ca);gl.uniform1f(uni.blur,Q.rough*2.2*(S/720));gl.uniform1f(uni.noise,Q.rough*.9);gl.uniform1f(uni.mode,Q.mode);
-  gl.uniform1f(uni.glass,Q.glass?1:0);gl.uniform1f(uni.seed,7.13);gl.uniform2f(uni.res,S,S);
+  gl.uniform1f(uni.glass,Q.glass?1:0);gl.uniform1f(uni.seed,7.13);gl.uniform2f(uni.res,S,S);gl.uniform1f(uni.bM,L.M);gl.uniform1f(uni.bS,L.bS);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 
@@ -884,7 +898,7 @@ function drawInfo(ctx,S){
 
 /* ---------- 렌더 ---------- */
 function renderTo(ctx,S){
-  const scene=compose(S),L=lensParams();
+  const scene=compose(S===PREVIEW?1080:2048),L=lensParams();
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
   ctx.fillStyle='#000';ctx.fillRect(0,0,S,S);
   if(prog){lensRender(scene,S,L);ctx.drawImage(glc,0,0,S,S)}
@@ -927,7 +941,7 @@ function onChange(p){
   if(p==='bg.color'&&ST.bg.type!=='solid')ST.bg.type='solid';
   if(p==='bg.zoom')clampBg();
   if(/^ov\.(k|grade|light|wrap|shadow|fx)$/.test(p)&&!ST.ov.on)ST.ov.on=true;
-  if(p==='drag'&&ST.drag==='bg'&&ST.bg.zoom<1.05){ST.bg.zoom=1.3;toast('배경을 조금 확대했어요. 끌어서 옮겨 보세요')}
+  if(p==='drag'&&ST.drag==='bg'&&ST.bg.zoom<1.001)toast('배경은 확대해야 옮길 수 있어요. 두 손가락이나 휠로 확대해 보세요');
   if(p.startsWith('text.')||p==='lens.cam'||p==='lens.info')ensureFonts();
   syncUI();req();
 }
@@ -953,8 +967,8 @@ $('#palettes').addEventListener('click',e=>{const b=e.target.closest('[data-pc]'
 $('#quickLines').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ST.text.str=b.textContent;$('#tStr').value=ST.text.str;onChange('text.str')});
 /* 사진 버튼 */
 $('#sFlip').onclick=()=>{ST.subject.flip=!ST.subject.flip;req()};
-$('#sCenter').onclick=()=>{const s=ST.subject,m=Math.max(s.canvas.width,s.canvas.height),k=s.scale/m,bb=s.bbox;s.x=.5-(bb.x+bb.w/2-s.canvas.width/2)*k*(s.flip?-1:1);s.y=.55-(bb.y+bb.h/2-s.canvas.height/2)*k;s.rot=0;syncUI();req()};
-$('#sReset').onclick=()=>{if(ST.subject.id===exampleId){ST.subject.scale=.64;ST.subject.x=.5;ST.subject.y=.6;ST.subject.rot=0;ST.subject.flip=false}else fitSubject(ST.subject);syncUI();req()};
+$('#sCenter').onclick=()=>{const s=ST.subject,m=Math.max(s.canvas.width,s.canvas.height),k=s.scale/m,bb=s.bbox;s.x=.5-(bb.x+bb.w/2-s.canvas.width/2)*k*(s.flip?-1:1);s.y=.5-(bb.y+bb.h*.42-s.canvas.height/2)*k;s.rot=0;syncUI();req()};
+$('#sReset').onclick=()=>{if(ST.subject.id===exampleId){ST.subject.scale=.62;ST.subject.x=.5;ST.subject.y=.5-(565-450)/900*.62;ST.subject.rot=0;ST.subject.flip=false}else fitSubject(ST.subject);syncUI();req()};
 $('#ovResetEach').onclick=()=>{Object.assign(ST.ov,{grade:1,light:1,wrap:1,shadow:1,fx:1});syncUI();req()};
 $('#bgReset').onclick=()=>{ST.bg.x=0;ST.bg.y=0;ST.bg.zoom=1;syncUI();req()};
 
@@ -981,7 +995,7 @@ const mid=a=>a.length>1?{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}:a[0];
 const dist=a=>Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y)||1;
 const ang=a=>Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x);
 function gStart(){const pts=[...ptrs.values()].map(p=>({...p}));const bg=ST.drag==='bg',t=bg?ST.bg:ST.subject;g0={pts,x:t.x,y:t.y,scale:bg?ST.bg.zoom:ST.subject.scale,rot:ST.subject.rot}}
-view.addEventListener('pointerdown',e=>{$('#cue').classList.add('gone');view.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});gStart();view.classList.add('grabbing')});
+view.addEventListener('pointerdown',e=>{$('#cue').classList.add('gone');if(ST.drag==='subject')device.classList.add('aiming');view.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});gStart();view.classList.add('grabbing')});
 view.addEventListener('pointermove',e=>{
   if(!ptrs.has(e.pointerId)||!ST.subject)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   const pts=[...ptrs.values()];if(pts.length!==g0.pts.length){gStart();return}
@@ -992,7 +1006,7 @@ view.addEventListener('pointermove',e=>{
     if(bg)ST.bg.zoom=clamp(g0.scale*r,1,3);else{ST.subject.scale=clamp(g0.scale*r,.1,3);ST.subject.rot=clamp(g0.rot+da,-180,180)}}
   if(bg)clampBg();syncUI();req();
 });
-const up=e=>{ptrs.delete(e.pointerId);if(ptrs.size)gStart();else view.classList.remove('grabbing')};
+const up=e=>{ptrs.delete(e.pointerId);if(ptrs.size)gStart();else{view.classList.remove('grabbing');device.classList.remove('aiming')}};
 view.addEventListener('pointerup',up);view.addEventListener('pointercancel',up);
 view.addEventListener('wheel',e=>{e.preventDefault();if(!ST.subject)return;const f=Math.exp(-e.deltaY*.0015);
   if(ST.drag==='bg'){ST.bg.zoom=clamp(ST.bg.zoom*f,1,3);clampBg()}else ST.subject.scale=clamp(ST.subject.scale*f,.1,3);syncUI();req()},{passive:false});
@@ -1025,11 +1039,8 @@ $('#save').addEventListener('click',async()=>{
       catch(err){const c=err&&err.code;if(c==='declined'){toast('저장을 취소했어요');return}if(c==='rate_limited'){toast('저장 창이 이미 열려 있어요');return}}
     }
     if(!inArtifact){
-      /* 깃허브 페이지 등 일반 웹: 휴대폰은 공유 시트(사진 앱에 저장), 그 외엔 바로 다운로드 */
-      const name='딩동캠-'+stamp(new Date())+'.png',file=new File([blob],name,{type:'image/png'});
-      if(matchMedia('(pointer:coarse)').matches&&navigator.canShare&&navigator.canShare({files:[file]})){
-        try{await navigator.share({files:[file]});return}catch(err){if(err&&err.name==='AbortError')return}
-      }
+      /* 깃허브 페이지 등 일반 웹: 휴대폰·PC 모두 공유 창 없이 바로 다운로드 */
+      const name='딩동캠-'+stamp(new Date())+'.png';
       const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('저장했어요');return;
     }
     showSheet(blob);
